@@ -26,19 +26,25 @@ import {
   TrendingDown
 } from 'lucide-react';
 import type { AnalysisResult } from '../types/analysis';
+import type { AnalysisMood } from './MoodSelector';
+import { MoodAnalyzer } from '../services/moodAnalyzer';
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
   onReset: () => void;
+  mood?: AnalysisMood;
 }
 
-export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onReset }) => {
+export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onReset, mood = 'professional' }) => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   // Early return check for critical missing data
   if (!result || !result.actionVerbAnalysis || !result.softSkillsInference || !result.consistencyCheck || !result.quantificationAnalysis) {
     return <div className="text-red-600">Analysis failed: missing data. Please reupload your resume.</div>;
   }
+
+  // Get mood-specific theme
+  const moodTheme = MoodAnalyzer.getMoodTheme(mood);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -71,6 +77,11 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-slate-800">Resume Analysis Report</h2>
+          {mood !== 'professional' && (
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${moodTheme.cardBg} ${moodTheme.textColor} ${moodTheme.borderColor} border`}>
+              {mood.charAt(0).toUpperCase() + mood.slice(1)} Mode
+            </div>
+          )}
           <button
             onClick={onReset}
             className="flex items-center space-x-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -135,6 +146,22 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </div>
         </div>
       </div>
+
+      {/* Mood-Specific Summary */}
+      {result.moodSpecificSummary && (
+        <div className={`rounded-xl shadow-sm border p-6 ${moodTheme.cardBg} ${moodTheme.borderColor}`}>
+          <h3 className={`text-lg font-semibold mb-3 ${moodTheme.textColor}`}>
+            {mood === 'brutal' && '💀 Reality Check'}
+            {mood === 'soft' && '💕 Gentle Summary'}
+            {mood === 'professional' && '📋 Executive Summary'}
+            {mood === 'witty' && '😏 The Real Talk'}
+            {mood === 'motivational' && '🚀 Champion Summary'}
+          </h3>
+          <p className={`${moodTheme.textColor} ${moodTheme.font}`}>
+            {result.moodSpecificSummary}
+          </p>
+        </div>
+      )}
 
       {/* Comprehensive Score Breakdown */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -441,34 +468,46 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
       {/* Traditional Sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Strengths */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+        <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
+          <h3 className={`text-lg font-semibold mb-4 flex items-center ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
             <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
-            Key Strengths
+            {mood === 'brutal' && 'What You Got Right'}
+            {mood === 'soft' && 'Your Beautiful Strengths ✨'}
+            {mood === 'professional' && 'Key Strengths'}
+            {mood === 'witty' && 'Actually Not Bad 👌'}
+            {mood === 'motivational' && 'POWER MOVES 💪'}
           </h3>
           
           <div className="space-y-3">
-            {(result?.strengths ?? []).map((strength, index) => (
+            {(result?.moodSpecificStrengths || result?.strengths ?? []).map((strength, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <p className="text-slate-700">{strength}</p>
+                <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
+                  {strength}
+                </p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Improvements */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+        <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
+          <h3 className={`text-lg font-semibold mb-4 flex items-center ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
             <Target className="w-5 h-5 mr-2 text-orange-600" />
-            Priority Improvements
+            {mood === 'brutal' && 'Fix This Now'}
+            {mood === 'soft' && 'Gentle Suggestions 🌱'}
+            {mood === 'professional' && 'Priority Improvements'}
+            {mood === 'witty' && 'Room for Improvement 🤷‍♂️'}
+            {mood === 'motivational' && 'LEVEL UP ZONES 🎯'}
           </h3>
           
           <div className="space-y-3">
-            {(result?.improvements ?? []).map((improvement, index) => (
+            {(result?.moodSpecificImprovements || result?.improvements ?? []).map((improvement, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
                 <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                <p className="text-slate-700">{improvement}</p>
+                <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
+                  {improvement}
+                </p>
               </div>
             ))}
           </div>

@@ -1,12 +1,15 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, FileText, Zap, CheckCircle } from 'lucide-react';
+import type { AnalysisMood } from './MoodSelector';
+import { MoodAnalyzer } from '../services/moodAnalyzer';
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void;
   disabled?: boolean;
+  mood?: AnalysisMood;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled = false }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled = false, mood = 'professional' }) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -50,8 +53,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled =
     return validTypes.includes(file.type) || file.name.endsWith('.txt');
   };
 
+  // Get mood-specific theme
+  const moodTheme = MoodAnalyzer.getMoodTheme(mood);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <div className={`rounded-xl shadow-sm border p-8 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
       <div
         className={`
           relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200
@@ -84,10 +90,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled =
           
           <div className="space-y-2">
             <h3 className="text-xl font-semibold text-slate-800">
-              Upload Your Resume
+              {mood === 'brutal' && 'Drop Your Resume (If You Dare)'}
+              {mood === 'soft' && 'Share Your Beautiful Resume ✨'}
+              {mood === 'professional' && 'Upload Your Resume'}
+              {mood === 'witty' && 'Time to Spill the Tea 📄'}
+              {mood === 'motivational' && 'UNLEASH YOUR RESUME! 🚀'}
             </h3>
-            <p className="text-sm text-slate-600">
-              Drag and drop your resume here, or click to browse
+            <p className={`text-sm ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-600'}`}>
+              {mood === 'brutal' && 'Drag and drop. Let\'s see what we\'re working with.'}
+              {mood === 'soft' && 'Gently place your resume here, or click to browse 💕'}
+              {mood === 'professional' && 'Drag and drop your resume here, or click to browse'}
+              {mood === 'witty' && 'Drag, drop, and let the roasting begin 😏'}
+              {mood === 'motivational' && 'DROP IT LIKE IT\'S HOT! Time to analyze greatness! 🔥'}
             </p>
           </div>
           
