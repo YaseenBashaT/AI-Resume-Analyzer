@@ -124,8 +124,11 @@ export class ResumeParser {
       const arrayBuffer = await file.arrayBuffer();
       console.log(`📊 PDF buffer size: ${arrayBuffer.byteLength} bytes`);
       
+      // Clone the ArrayBuffer to prevent detachment issues
+      const bufferClone = new Uint8Array(arrayBuffer);
+      
       const pdf = await getDocument({ 
-        data: arrayBuffer,
+        data: bufferClone,
         verbosity: 0,
         // Disable image rendering and focus only on text
         disableFontFace: true,
@@ -245,9 +248,17 @@ export class ResumeParser {
   private static async extractTextWithOCR(pdfBuffer: ArrayBuffer): Promise<string> {
     console.log('🔍 Starting OCR extraction...');
     
+    // Validate buffer before processing
+    if (!pdfBuffer || pdfBuffer.byteLength === 0) {
+      throw new Error("Buffer is empty or undefined.");
+    }
+    
     try {
+      // Clone the buffer to ensure it's not detached
+      const safeBuffer = new Uint8Array(pdfBuffer);
+      
       // Convert PDF pages to images and extract text using OCR
-      const pdf = await getDocument({ data: pdfBuffer }).promise;
+      const pdf = await getDocument({ data: safeBuffer }).promise;
       let ocrText = '';
       
       // Limit OCR to first 3 pages for performance
