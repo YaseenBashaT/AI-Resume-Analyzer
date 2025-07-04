@@ -317,21 +317,53 @@ export class ResumeParser {
     let currentSection = 'other';
     let currentContent: string[] = [];
 
-    // First, try to extract contact info from the top
-    const topLines = lines.slice(0, 10);
-    const contactLines = topLines.filter(line => 
-      /[@.]/.test(line) || // Email or website
-      /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/.test(line) || // Phone
-      /linkedin|github|portfolio/i.test(line) // Social links
-    );
+    // Enhanced contact info extraction from the top of the resume
+    const topLines = lines.slice(0, 15);
+    const contactLines = topLines.filter(line => {
+      const cleanLine = line.trim();
+      return (
+        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(cleanLine) || // Email
+        /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/.test(cleanLine) || // Phone
+        /linkedin\.com|github\.com|portfolio|website/i.test(cleanLine) || // Social links
+        /\b\d{1,5}\s+\w+\s+(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd)/i.test(cleanLine) || // Address
+        /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}/.test(cleanLine) // City, State ZIP
+      );
+    });
+    
+    // Also include name-like patterns from the very top
+    const namePattern = /^[A-Z][a-z]+\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?$/;
+    const potentialName = topLines.slice(0, 3).find(line => namePattern.test(line.trim()));
+    
+    if (potentialName) {
+      contactLines.unshift(potentialName.trim());
+    }
     
     if (contactLines.length > 0) {
-      sections.contactInfo = contactLines.join('\n');
+      sections.contactInfo = [...new Set(contactLines)].join('\n'); // Remove duplicates
     }
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
+    // Enhanced summary detection - look for summary-like content early in the resume
+    const summaryLines = topLines.slice(contactLines.length > 0 ? contactLines.length : 0, 20);
+    const summaryContent = summaryLines.filter(line => {
+      const cleanLine = line.trim();
+      return cleanLine.length > 30 && // Substantial content
+             !namePattern.test(cleanLine) && // Not a name
+             !/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(cleanLine) && // Not email
+             !/\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/.test(cleanLine) && // Not phone
+             /[.!?]$/.test(cleanLine); // Ends with sentence punctuation
+    });
+    
+    if (summaryContent.length > 0) {
+      sections.summary = summaryContent.slice(0, 3).join(' '); // Take first few sentences
+    }
+
+    // Process remaining lines for other sections
+    const remainingLines = lines.slice(Math.max(contactLines.length, summaryContent.length));
+    
+    for (let i = 0; i < remainingLines.length; i++) {
+      const line = remainingLines[i].trim();
+    );
+    
       if (!line) continue;
 
       // Check if this line is a section header

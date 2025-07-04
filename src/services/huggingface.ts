@@ -505,6 +505,58 @@ Return ONLY a JSON object (no markdown, no explanations):
   }
 };
 
+// Enhanced summary generation with mood awareness
+const generateMoodAwareSummary = async (resumeText: string, roleAnalysis: any, seniorityAnalysis: any, extractedSkills: string[], apiKey: string, mood: AnalysisMood): Promise<string> => {
+  const messages = [
+    {
+      role: 'system',
+      content: `You are a resume analysis expert. Create a comprehensive 5-6 line summary of the candidate based on their resume.
+
+CRITICAL: Return ONLY the summary text, no JSON, no markdown, no explanations.
+
+The summary should include:
+- Professional background and role
+- Years of experience and seniority level
+- Key skills and expertise areas
+- Notable achievements or strengths
+- Overall career trajectory
+- Industry focus
+
+Keep it factual, comprehensive, and professional regardless of the requested tone.`
+    },
+    {
+      role: 'user',
+      content: `Create a detailed summary for this candidate:
+
+RESUME TEXT:
+${resumeText}
+
+DETECTED ROLE: ${roleAnalysis.detectedRole || 'Professional'}
+SENIORITY: ${seniorityAnalysis.level || 'Mid-level'} (${seniorityAnalysis.yearsExperience || 'several'} years)
+KEY SKILLS: ${extractedSkills.slice(0, 8).join(', ')}
+
+Write a comprehensive 5-6 line summary covering their background, experience, skills, and career focus.`
+    }
+  ];
+
+  try {
+    const response = await makeGroqRequest(messages, apiKey);
+    console.log('Summary generation raw response:', response);
+    
+    // Clean up the response to extract just the summary
+    const cleanSummary = response
+      .replace(/```.*?```/gs, '') // Remove code blocks
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
+      .trim();
+    
+    return cleanSummary || `${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience in ${extractedSkills.slice(0, 3).join(', ')} and related technologies.`;
+  } catch (error) {
+    console.error('Summary generation failed:', error);
+    return `${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience in ${extractedSkills.slice(0, 3).join(', ')} and related technologies.`;
+  }
+};
+
 export class HuggingFaceService {
   constructor(private apiKey: string) {
     console.log('🔧 HuggingFaceService initialized with API key length:', apiKey.length);
@@ -552,11 +604,22 @@ export class HuggingFaceService {
         analyzeConsistencyWithGroq(resumeText, this.apiKey)
       ]);
 
+      // Generate comprehensive summary
+      const comprehensiveSummary = await generateMoodAwareSummary(
+        resumeText, 
+        roleAnalysis, 
+        seniorityAnalysis, 
+        extractedSkills, 
+        this.apiKey, 
+        mood
+      );
+
       console.log('=== ANALYSIS RESULTS ===');
       console.log('Role Analysis:', roleAnalysis);
       console.log('Extracted Skills:', extractedSkills);
       console.log('Seniority Analysis:', seniorityAnalysis);
       console.log('Soft Skills Analysis:', softSkillsAnalysis);
+      console.log('Generated Summary:', comprehensiveSummary);
       console.log('=== END ANALYSIS RESULTS ===');
 
       // Calculate detailed scores
@@ -590,7 +653,7 @@ export class HuggingFaceService {
           'Ensure consistent formatting throughout'
         ],
         extractedSkills,
-        summary: `${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience`,
+        summary: comprehensiveSummary,
         
         quantificationAnalysis,
         actionVerbAnalysis,

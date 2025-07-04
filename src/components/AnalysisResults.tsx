@@ -149,16 +149,28 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
 
       {/* Mood-Specific Summary */}
       {result.moodSpecificSummary && (
-        <div className={`rounded-xl shadow-sm border p-6 ${moodTheme.cardBg} ${moodTheme.borderColor}`}>
-          <h3 className={`text-lg font-semibold mb-3 ${moodTheme.textColor}`}>
+        <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
+          <h3 className={`text-lg font-semibold mb-3 ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
             {mood === 'brutal' && '💀 Reality Check'}
             {mood === 'soft' && '💕 Gentle Summary'}
             {mood === 'professional' && '📋 Executive Summary'}
             {mood === 'witty' && '😏 The Real Talk'}
             {mood === 'motivational' && '🚀 Champion Summary'}
           </h3>
-          <p className={`${moodTheme.textColor} ${moodTheme.font}`}>
+          <p className={`leading-relaxed ${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
             {result.moodSpecificSummary}
+          </p>
+        </div>
+      )}
+      
+      {/* Fallback to regular summary if mood-specific isn't available */}
+      {!result.moodSpecificSummary && result.summary && (
+        <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
+          <h3 className={`text-lg font-semibold mb-3 ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
+            📋 Resume Summary
+          </h3>
+          <p className={`leading-relaxed ${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
+            {result.summary}
           </p>
         </div>
       )}
