@@ -109,41 +109,88 @@ const makeGroqRequest = async (messages: any[], apiKey: string, temperature = 0.
   console.log('🔑 API Key length:', apiKey.length);
   console.log('🔑 API Key prefix:', apiKey.substring(0, 10) + '...');
   
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages,
-      temperature,
-      max_tokens: 2000,
-    }),
-  });
+  const maxRetries = 3;
+  let retryCount = 0;
+  
+  while (retryCount <= maxRetries) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages,
+          temperature,
+          max_tokens: 2000,
+        }),
+      });
 
-  console.log('📡 Groq API Response Status:', response.status);
+      console.log('📡 Groq API Response Status:', response.status);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('❌ Groq API Error:', response.status, errorText);
-    
-    // Provide more specific error messages
-    if (response.status === 401) {
-      throw new Error(`Invalid API Key - Please check your Groq API key`);
-    } else if (response.status === 429) {
-      throw new Error(`Rate limit exceeded - Please wait a moment and try again`);
-    } else if (response.status === 500) {
-      throw new Error(`Groq API server error - Please try again later`);
-    } else {
-      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Groq API Error:', response.status, errorText);
+        
+        // Handle rate limiting with retry
+        if (response.status === 429 && retryCount < maxRetries) {
+          retryCount++;
+          
+          // Parse retry delay from error message or use exponential backoff
+          let retryDelay = Math.pow(2, retryCount) * 1000; // Start with 2s, then 4s, then 8s
+          
+          // Try to extract delay from error message
+          try {
+            const errorData = JSON.parse(errorText);
+            const errorMessage = errorData.error?.message || '';
+            const delayMatch = errorMessage.match(/try again in ([\d.]+)s/);
+            if (delayMatch) {
+              retryDelay = Math.ceil(parseFloat(delayMatch[1]) * 1000) + 500; // Add 500ms buffer
+            }
+          } catch (e) {
+            // Use default exponential backoff if parsing fails
+          }
+          
+          console.log(`⏳ Rate limited. Retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue; // Retry the request
+        }
+        
+        // Provide more specific error messages for non-retryable errors
+        if (response.status === 401) {
+          throw new Error(`Invalid API Key - Please check your Groq API key`);
+        } else if (response.status === 429) {
+          throw new Error(`Rate limit exceeded - Maximum retries reached. Please wait a few minutes and try again`);
+        } else if (response.status === 500) {
+          throw new Error(`Groq API server error - Please try again later`);
+        } else {
+          throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+        }
+      }
+
+      const data = await response.json();
+      console.log('✅ Groq API Response received:', data.choices?.[0]?.message?.content?.length || 0, 'characters');
+      return data.choices[0]?.message?.content || '';
+      
+    } catch (error) {
+      // If it's a network error and we have retries left, try again
+      if (retryCount < maxRetries && (error instanceof TypeError || error.message.includes('fetch'))) {
+        retryCount++;
+        const retryDelay = Math.pow(2, retryCount) * 1000;
+        console.log(`🔄 Network error. Retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        continue;
+      }
+      
+      // Re-throw the error if it's not retryable or we've exhausted retries
+      throw error;
     }
   }
-
-  const data = await response.json();
-  console.log('✅ Groq API Response received:', data.choices?.[0]?.message?.content?.length || 0, 'characters');
-  return data.choices[0]?.message?.content || '';
+  
+  // This should never be reached, but just in case
+  throw new Error('Maximum retries exceeded');
 };
 
 const analyzeRoleWithGroq = async (resumeText: string, apiKey: string) => {
