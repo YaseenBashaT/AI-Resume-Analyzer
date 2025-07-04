@@ -124,7 +124,12 @@ export class ResumeParser {
       
       const pdf = await getDocument({ 
         data: arrayBuffer,
-        verbosity: 0
+        verbosity: 0,
+        // Disable image rendering and focus only on text
+        disableFontFace: true,
+        disableRange: false,
+        disableStream: false,
+        disableAutoFetch: false
       }).promise;
       console.log(`📄 PDF loaded: ${pdf.numPages} pages`);
       
@@ -134,22 +139,70 @@ export class ResumeParser {
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         console.log(`📖 Processing page ${pageNum}/${pdf.numPages}...`);
         const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
         
-        // Combine text items from the page
+        // Get text content with enhanced options for text-only extraction
+        const textContent = await page.getTextContent({
+          // Normalize whitespace and ignore styling
+          normalizeWhitespace: true,
+          // Don't include invisible text
+          includeMarkedContent: false,
+          // Disable image extraction
+          disableCombineTextItems: false
+        });
+        
+        // Filter and combine only actual text items, ignoring images and graphics
         const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
+          .filter((item: any) => {
+            // Only include items that have actual text content
+            return item.str && 
+                   typeof item.str === 'string' && 
+                   item.str.trim().length > 0 &&
+                   // Filter out common non-text artifacts
+                   !item.str.match(/^[\s\u00A0\u2000-\u200B\u2028\u2029\uFEFF]*$/) && // Whitespace-only
+                   !item.str.match(/^[^\w\s]*$/) && // Symbol-only (likely graphics)
+                   item.str.length < 1000; // Extremely long strings are likely corrupted data
+          })
+          .map((item: any) => {
+            // Clean and normalize the text
+            let text = item.str.trim();
+            
+            // Remove common PDF artifacts
+            text = text.replace(/[\u00A0\u2000-\u200B\u2028\u2029\uFEFF]/g, ' '); // Replace various whitespace chars
+            text = text.replace(/\s+/g, ' '); // Normalize multiple spaces
+            
+            // Add appropriate spacing based on text positioning
+            // If this item seems to be at the end of a line/sentence, add space
+            if (item.hasEOL || text.endsWith('.') || text.endsWith(',') || text.endsWith(':')) {
+              text += ' ';
+            }
+            
+            return text;
+          })
+          .join('')
+          .trim();
         
-        fullText += pageText + '\n';
+        // Only add page text if it contains meaningful content
+        if (pageText && pageText.length > 0) {
+          fullText += pageText + '\n';
+        }
+        
         console.log(`📝 Page ${pageNum} extracted: ${pageText.length} characters`);
+        
+        // Log sample of extracted text for debugging
+        if (pageText.length > 0) {
+          console.log(`📄 Page ${pageNum} sample:`, pageText.substring(0, 200) + '...');
+        }
       }
+      
+      // Final text cleanup
+      fullText = this.cleanExtractedText(fullText);
       
       if (!fullText.trim()) {
         throw new Error('PDF appears to contain no readable text. It may be image-based or corrupted.');
       }
       
       console.log(`✅ PDF extraction complete: ${fullText.length} characters from ${pdf.numPages} pages`);
+      console.log(`📝 Final extracted text sample:`, fullText.substring(0, 500) + '...');
       return fullText;
       
     } catch (error) {
@@ -162,6 +215,55 @@ export class ResumeParser {
     }
   }
 
+  /**
+   * Clean extracted text from any remaining artifacts
+   */
+  private static cleanExtractedText(text: string): string {
+    let cleaned = text;
+    
+    // Remove page numbers and headers/footers that appear multiple times
+    const lines = cleaned.split('\n');
+    const lineFrequency = new Map<string, number>();
+    
+    // Count frequency of each line to identify headers/footers
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && trimmed.length < 100) { // Only check short lines
+        lineFrequency.set(trimmed, (lineFrequency.get(trimmed) || 0) + 1);
+      }
+    });
+    
+    // Remove lines that appear too frequently (likely headers/footers)
+    const filteredLines = lines.filter(line => {
+      const trimmed = line.trim();
+      const frequency = lineFrequency.get(trimmed) || 0;
+      
+      // Remove if it appears more than 2 times and looks like header/footer
+      if (frequency > 2 && (
+        /^page\s+\d+/i.test(trimmed) || // Page numbers
+        /^\d+$/.test(trimmed) || // Standalone numbers
+        /^confidential/i.test(trimmed) || // Confidential headers
+        trimmed.length < 5 // Very short repeated text
+      )) {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    cleaned = filteredLines.join('\n');
+    
+    // Remove excessive whitespace and normalize
+    cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n'); // Max 2 consecutive newlines
+    cleaned = cleaned.replace(/[ \t]+/g, ' '); // Normalize spaces
+    cleaned = cleaned.replace(/^\s+|\s+$/gm, ''); // Trim each line
+    
+    // Remove common PDF artifacts
+    cleaned = cleaned.replace(/\f/g, ''); // Form feed characters
+    cleaned = cleaned.replace(/\r/g, ''); // Carriage returns
+    
+    return cleaned.trim();
+  }
   /**
    * Extract text from Word document using mammoth
    */
