@@ -603,6 +603,16 @@ const detectPIIInformation = (resumeText: string) => {
     }
   });
 
+  // Deduplicate phone numbers by normalized format
+  const uniquePhones = new Map<string, string>();
+  piiData.phones.forEach(phone => {
+    const normalized = phone.replace(/[^\d]/g, ''); // Remove all non-digits
+    if (!uniquePhones.has(normalized)) {
+      uniquePhones.set(normalized, phone);
+    }
+  });
+  piiData.phones = Array.from(uniquePhones.values());
+
   // Social media detection
   const socialPatterns = [
     /linkedin\.com\/in\/[A-Za-z0-9\-_]+/gi,
