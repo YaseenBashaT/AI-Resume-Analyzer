@@ -87,7 +87,7 @@ export class ResumeParser {
 
       // Validate extracted text
       if (!extractedText || extractedText.trim().length < 50) {
-        throw new Error(`Resume text is too short or empty. Please ensure your resume contains sufficient readable content. Current length: ${extractedText?.trim().length || 0} characters.`);
+        throw new Error(`We couldn't read text from your resume. Try uploading a higher-quality scan or export your PDF from a text editor (like Word or Google Docs). Current length: ${extractedText?.trim().length || 0} characters.`);
       }
 
       console.log(`✅ Successfully extracted ${extractedText.length} characters from ${file.name}`);
@@ -101,11 +101,11 @@ export class ResumeParser {
       // Provide specific error messages based on the type of failure
       if (error instanceof Error) {
         if (error.message.includes('PDF extraction failed')) {
-          throw new Error(`PDF processing failed: ${error.message}\n\nTip: Try uploading your resume as a Word document (.docx) instead.`);
+          throw new Error(`PDF processing failed: ${error.message}`);
         } else if (error.message.includes('Word document extraction failed')) {
-          throw new Error(`Word document processing failed: ${error.message}\n\nTip: Try uploading your resume as a PDF or plain text file instead.`);
-        } else if (error.message.includes('too short') || error.message.includes('empty')) {
-          throw new Error(`${error.message}\n\nPlease ensure your resume:\n• Contains readable text (not just images)\n• Is not password-protected\n• Has sufficient content to analyze`);
+          throw new Error(`Word document processing failed: ${error.message}`);
+        } else if (error.message.includes('couldn\'t read text')) {
+          throw error; // Pass through the improved error message
         }
         throw error;
       }
@@ -115,215 +115,138 @@ export class ResumeParser {
   }
 
   /**
-   * Extract text from PDF using pdfjs-dist with local worker
-   * Includes OCR fallback for image-based PDFs
+   * Improved PDF extraction with OCR fallback
    */
   private static async extractFromPDF(file: File): Promise<string> {
     try {
-      console.log('🔧 Initializing PDF processing with local worker:', pdfjsLib.GlobalWorkerOptions.workerSrc);
-      const arrayBuffer = await file.arrayBuffer();
-      console.log(`📊 PDF buffer size: ${arrayBuffer.byteLength} bytes`);
+      console.log('🔧 Starting PDF text extraction...');
+      const buffer = await file.arrayBuffer();
+      console.log(`📊 PDF buffer size: ${buffer.byteLength} bytes`);
       
-      // Clone the ArrayBuffer to prevent detachment issues
-      const bufferClone = new Uint8Array(arrayBuffer);
+      // Clone buffer to prevent detachment issues
+      const safeBuffer = new Uint8Array(buffer);
       
-      const pdf = await getDocument({ 
-        data: bufferClone,
-        verbosity: 0,
-        // Disable image rendering and focus only on text
-        disableFontFace: true,
-        disableRange: false,
-        disableStream: false,
-        disableAutoFetch: false
-      }).promise;
+      const pdf = await getDocument({ data: safeBuffer }).promise;
       console.log(`📄 PDF loaded: ${pdf.numPages} pages`);
       
-      let fullText = '';
-      
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        console.log(`📖 Processing page ${pageNum}/${pdf.numPages}...`);
-        const page = await pdf.getPage(pageNum);
+      let text = '';
+
+      // Extract text from all pages
+      for (let i = 1; i <= pdf.numPages; i++) {
+        console.log(`📖 Processing page ${i}/${pdf.numPages}...`);
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
         
-        // Get text content with enhanced options for text-only extraction
-        const textContent = await page.getTextContent({
-          // Normalize whitespace and ignore styling
-          normalizeWhitespace: true,
-          // Don't include invisible text
-          includeMarkedContent: false,
-          // Disable image extraction
-          disableCombineTextItems: false
-        });
+        // Extract only meaningful text, ignore images and graphics
+        const pageText = content.items
+          .filter((item: any) => item.str && typeof item.str === 'string' && item.str.trim().length > 0)
+          .map((item: any) => item.str)
+          .join(' ') + '\n';
         
-        // Filter and combine only actual text items, ignoring images and graphics
-        const pageText = textContent.items
-          .filter((item: any) => {
-            // Only include items that have actual text content
-            return item.str && 
-                   typeof item.str === 'string' && 
-                   item.str.trim().length > 0 &&
-                   // Filter out common non-text artifacts
-                   !item.str.match(/^[\s\u00A0\u2000-\u200B\u2028\u2029\uFEFF]*$/) && // Whitespace-only
-                   !item.str.match(/^[^\w\s]*$/) && // Symbol-only (likely graphics)
-                   item.str.length < 1000; // Extremely long strings are likely corrupted data
-          })
-          .map((item: any) => {
-            // Clean and normalize the text
-            let text = item.str.trim();
-            
-            // Remove common PDF artifacts
-            text = text.replace(/[\u00A0\u2000-\u200B\u2028\u2029\uFEFF]/g, ' '); // Replace various whitespace chars
-            text = text.replace(/\s+/g, ' '); // Normalize multiple spaces
-            
-            // Add appropriate spacing based on text positioning
-            // If this item seems to be at the end of a line/sentence, add space
-            if (item.hasEOL || text.endsWith('.') || text.endsWith(',') || text.endsWith(':')) {
-              text += ' ';
-            }
-            
-            return text;
-          })
-          .join('')
-          .trim();
-        
-        // Only add page text if it contains meaningful content
-        if (pageText && pageText.length > 0) {
-          fullText += pageText + '\n';
-        }
-        
-        console.log(`📝 Page ${pageNum} extracted: ${pageText.length} characters`);
-        
-        // Log sample of extracted text for debugging
-        if (pageText.length > 0) {
-          console.log(`📄 Page ${pageNum} sample:`, pageText.substring(0, 200) + '...');
-        }
+        text += pageText;
+        console.log(`📝 Page ${i} extracted: ${pageText.length} characters`);
       }
-      
-      // Final text cleanup
-      fullText = this.cleanExtractedText(fullText);
-      
-      // Check if we have sufficient text content
-      const textLength = fullText.trim().length;
-      console.log(`📊 Extracted text length: ${textLength} characters`);
-      
-      // If text is too short, try OCR fallback
-      if (textLength < 100) {
-        console.log('⚠️ Insufficient text extracted, attempting OCR fallback...');
-        try {
-          const ocrText = await this.extractTextWithOCR(arrayBuffer);
-          if (ocrText && ocrText.trim().length > textLength) {
-            console.log(`✅ OCR extracted ${ocrText.length} characters, using OCR result`);
-            fullText = ocrText;
-          } else {
-            console.log('❌ OCR did not improve text extraction');
-          }
-        } catch (ocrError) {
-          console.warn('⚠️ OCR fallback failed:', ocrError);
-          // Continue with original text even if OCR fails
-        }
+
+      // Clean up extracted text
+      text = this.cleanExtractedText(text);
+      console.log(`📊 Total extracted text length: ${text.length} characters`);
+
+      // 🛡️ Fallback if text is empty or too short
+      if (text.trim().length < 30) {
+        console.warn('🔁 No readable text found, switching to OCR...');
+        return await this.extractTextWithOCR(buffer);
       }
+
+      console.log(`✅ PDF text extraction successful: ${text.length} characters`);
+      return text;
       
-      // Final validation
-      if (!fullText.trim() || fullText.trim().length < 50) {
-        throw new Error('PDF appears to contain no readable text. This may be an image-based PDF without a text layer, or the file may be corrupted. Please try converting to a text-based PDF or use a different file format.');
-      }
-      
-      console.log(`✅ PDF extraction complete: ${fullText.length} characters from ${pdf.numPages} pages`);
-      console.log(`📝 Final extracted text sample:`, fullText.substring(0, 500) + '...');
-      return fullText;
-      
-    } catch (error) {
-      console.error('❌ PDF extraction error:', error);
-      
-      if (error instanceof Error && error.message.includes('Invalid PDF')) {
-        throw new Error('Invalid or corrupted PDF file. Please try a different file.');
-      }
-      throw new Error(`PDF extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (err) {
+      console.error('❌ PDF extraction error:', err);
+      throw new Error('PDF processing failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   }
 
   /**
-   * Extract text using OCR as fallback for image-based PDFs
+   * OCR extraction for image-based PDFs
    */
-  private static async extractTextWithOCR(pdfBuffer: ArrayBuffer): Promise<string> {
-    console.log('🔍 Starting OCR extraction...');
-    
-    // Validate buffer before processing
-    if (!pdfBuffer || pdfBuffer.byteLength === 0) {
-      throw new Error("Buffer is empty or undefined.");
-    }
-    
+  private static async extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
     try {
-      // Clone the buffer to ensure it's not detached
-      const safeBuffer = new Uint8Array(pdfBuffer);
+      console.log('🔍 Starting OCR extraction...');
       
-      // Convert PDF pages to images and extract text using OCR
+      // Validate buffer
+      if (!buffer || buffer.byteLength === 0) {
+        throw new Error("Buffer is empty or undefined.");
+      }
+
+      // Convert PDF pages to images and extract text
+      const imageDataUrl = await this.convertPdfPageToImage(buffer);
+      
+      // Create Tesseract worker
+      console.log('🤖 Initializing OCR worker...');
+      const worker = await createWorker('eng');
+      
+      // Perform OCR
+      console.log('🔍 Running OCR on PDF content...');
+      const { data: { text } } = await worker.recognize(imageDataUrl);
+      
+      // Clean up worker
+      await worker.terminate();
+      
+      // Clean OCR text
+      const cleanedText = this.cleanOCRText(text);
+      
+      console.log(`✅ OCR extraction complete: ${cleanedText.length} characters`);
+      return cleanedText;
+      
+    } catch (err) {
+      console.error('❌ OCR extraction failed:', err);
+      throw new Error('OCR extraction failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }
+
+  /**
+   * Convert PDF page to image for OCR
+   */
+  private static async convertPdfPageToImage(buffer: ArrayBuffer): Promise<string> {
+    try {
+      console.log('🖼️ Converting PDF page to image...');
+      
+      // Use fresh buffer to avoid detachment
+      const safeBuffer = new Uint8Array(buffer);
       const pdf = await getDocument({ data: safeBuffer }).promise;
-      let ocrText = '';
+      const page = await pdf.getPage(1); // Convert first page only for performance
       
-      // Limit OCR to first 3 pages for performance
-      const maxPages = Math.min(pdf.numPages, 3);
-      console.log(`📄 Processing ${maxPages} pages with OCR...`);
+      // Set up viewport with higher scale for better OCR
+      const viewport = page.getViewport({ scale: 2.0 });
       
-      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-        console.log(`🔍 OCR processing page ${pageNum}/${maxPages}...`);
-        
-        try {
-          const page = await pdf.getPage(pageNum);
-          
-          // Render page to canvas
-          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          
-          if (!context) {
-            console.warn(`⚠️ Could not get canvas context for page ${pageNum}`);
-            continue;
-          }
-          
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-          
-          // Render PDF page to canvas
-          await page.render({
-            canvasContext: context,
-            viewport: viewport
-          }).promise;
-          
-          // Convert canvas to image data for OCR
-          const imageData = canvas.toDataURL('image/png');
-          
-          // Create Tesseract worker
-          const worker = await createWorker('eng');
-          
-          // Perform OCR
-          const { data: { text } } = await worker.recognize(imageData);
-          
-          // Clean up worker
-          await worker.terminate();
-          
-          if (text && text.trim().length > 0) {
-            ocrText += text + '\n';
-            console.log(`✅ OCR page ${pageNum}: ${text.length} characters extracted`);
-          } else {
-            console.log(`⚠️ OCR page ${pageNum}: No text found`);
-          }
-          
-        } catch (pageError) {
-          console.warn(`⚠️ OCR failed for page ${pageNum}:`, pageError);
-          continue; // Skip this page and continue with others
-        }
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      
+      if (!context) {
+        throw new Error('Could not get canvas context');
       }
       
-      // Clean up OCR text
-      ocrText = this.cleanOCRText(ocrText);
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      // Render PDF page to canvas
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      };
       
-      console.log(`✅ OCR extraction complete: ${ocrText.length} characters total`);
-      return ocrText;
+      await page.render(renderContext).promise;
+      
+      // Convert to base64 image
+      const imageDataUrl = canvas.toDataURL('image/png');
+      console.log('✅ PDF page converted to image successfully');
+      
+      return imageDataUrl;
       
     } catch (error) {
-      console.error('❌ OCR extraction failed:', error);
-      throw new Error(`OCR extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ PDF to image conversion failed:', error);
+      throw new Error('Failed to convert PDF page to image: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   }
 
@@ -335,7 +258,7 @@ export class ResumeParser {
     
     // Fix common OCR errors
     cleaned = cleaned.replace(/[|]/g, 'I'); // Common OCR mistake
-    cleaned = cleaned.replace(/[0]/g, 'O'); // Zero to O in names
+    cleaned = cleaned.replace(/(\w)[0](\w)/g, '$1O$2'); // Zero to O in words
     cleaned = cleaned.replace(/(\w)[1](\w)/g, '$1l$2'); // 1 to l in words
     cleaned = cleaned.replace(/(\w)[5](\w)/g, '$1S$2'); // 5 to S in words
     
@@ -407,7 +330,7 @@ export class ResumeParser {
     
     return cleaned.trim();
   }
-  
+
   /**
    * Extract text from Word document using mammoth
    */
