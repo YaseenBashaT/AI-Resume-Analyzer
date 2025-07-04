@@ -479,7 +479,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </h3>
           
           <div className="space-y-3">
-            {(result?.moodSpecificStrengths || result?.strengths ?? []).map((strength, index) => (
+            {((result?.moodSpecificStrengths || result?.strengths) ?? []).map((strength, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                 <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
@@ -502,7 +502,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </h3>
           
           <div className="space-y-3">
-            {(result?.moodSpecificImprovements || result?.improvements ?? []).map((improvement, index) => (
+            {((result?.moodSpecificImprovements || result?.improvements) ?? []).map((improvement, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
                 <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                 <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
