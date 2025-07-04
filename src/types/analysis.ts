@@ -16,6 +16,13 @@ export interface AnalysisResult {
   extractedSkills: string[];
   summary: string;
   
+  // All mood variations generated upfront
+  allMoodContent?: {
+    summaries: Record<'brutal' | 'soft' | 'professional' | 'witty' | 'motivational', string>;
+    strengths: Record<'brutal' | 'soft' | 'professional' | 'witty' | 'motivational', string[]>;
+    improvements: Record<'brutal' | 'soft' | 'professional' | 'witty' | 'motivational', string[]>;
+  };
+  
   // Advanced Analysis Features
   quantificationAnalysis: {
     metricsFound: string[];

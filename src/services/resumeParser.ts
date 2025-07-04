@@ -318,24 +318,42 @@ export class ResumeParser {
     let currentContent: string[] = [];
 
     // Enhanced contact info extraction from the top of the resume
-    const topLines = lines.slice(0, 15);
+    const topLines = lines.slice(0, 20);
     const contactLines = topLines.filter(line => {
       const cleanLine = line.trim();
       return (
         /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(cleanLine) || // Email
-        /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/.test(cleanLine) || // Phone
+        /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/.test(cleanLine) || // US Phone
+        /\b(\+\d{1,3}[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/.test(cleanLine) || // International Phone
+        /\b\+?[\d\s\-\(\)]{10,15}\b/.test(cleanLine) || // General phone pattern
         /linkedin\.com|github\.com|portfolio|website/i.test(cleanLine) || // Social links
+        /\b(www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b/.test(cleanLine) || // Website URLs
         /\b\d{1,5}\s+\w+\s+(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd)/i.test(cleanLine) || // Address
-        /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}/.test(cleanLine) // City, State ZIP
+        /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}/.test(cleanLine) || // City, State ZIP
+        /\b[A-Z][a-z]+\s*,\s*[A-Z][a-z]+\s*,?\s*[A-Z]{2,3}\s*\d{5}/.test(cleanLine) // City, State, Country ZIP
       );
     });
     
     // Also include name-like patterns from the very top
-    const namePattern = /^[A-Z][a-z]+\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?$/;
+    const namePattern = /^[A-Z][a-z]+(\s+[A-Z]\.?)?\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?$/;
     const potentialName = topLines.slice(0, 3).find(line => namePattern.test(line.trim()));
     
     if (potentialName) {
       contactLines.unshift(potentialName.trim());
+    }
+    
+    // Look for professional titles near the top
+    const titlePattern = /(software|web|mobile|frontend|backend|full.?stack|data|senior|junior|lead|principal|architect|engineer|developer|designer|analyst|manager|director)/i;
+    const potentialTitle = topLines.slice(0, 5).find(line => {
+      const cleanLine = line.trim();
+      return titlePattern.test(cleanLine) && 
+             cleanLine.length < 100 && 
+             !namePattern.test(cleanLine) &&
+             !contactLines.includes(cleanLine);
+    });
+    
+    if (potentialTitle) {
+      contactLines.push(potentialTitle.trim());
     }
     
     if (contactLines.length > 0) {

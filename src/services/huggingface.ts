@@ -552,55 +552,146 @@ Return ONLY a JSON object (no markdown, no explanations):
   }
 };
 
-// Enhanced summary generation with mood awareness
-const generateMoodAwareSummary = async (resumeText: string, roleAnalysis: any, seniorityAnalysis: any, extractedSkills: string[], apiKey: string, mood: AnalysisMood): Promise<string> => {
+// Generate mood-aware content for all moods at once
+const generateAllMoodContent = async (
+  resumeText: string, 
+  roleAnalysis: any, 
+  seniorityAnalysis: any, 
+  extractedSkills: string[], 
+  strengths: string[],
+  improvements: string[],
+  apiKey: string
+): Promise<{
+  summaries: Record<AnalysisMood, string>;
+  strengthsVariations: Record<AnalysisMood, string[]>;
+  improvementsVariations: Record<AnalysisMood, string[]>;
+}> => {
   const messages = [
     {
       role: 'system',
-      content: `You are a resume analysis expert. Create a comprehensive 5-6 line summary of the candidate based on their resume.
+      content: `You are a resume analysis expert. Generate content for ALL 5 mood variations in a single response.
 
-CRITICAL: Return ONLY the summary text, no JSON, no markdown, no explanations.
+CRITICAL: Return ONLY valid JSON with no markdown formatting, no explanations, no additional text.
 
-The summary should include:
-- Professional background and role
-- Years of experience and seniority level
-- Key skills and expertise areas
-- Notable achievements or strengths
-- Overall career trajectory
-- Industry focus
+Generate the SAME core feedback but expressed in different tones. Do NOT change the facts, accuracy, or depth - only the delivery style.
 
-Keep it factual, comprehensive, and professional regardless of the requested tone.`
+Return this exact JSON structure:
+{
+  "summaries": {
+    "brutal": "summary in brutal tone",
+    "soft": "summary in soft tone", 
+    "professional": "summary in professional tone",
+    "witty": "summary in witty tone",
+    "motivational": "summary in motivational tone"
+  },
+  "strengths": {
+    "brutal": ["strength1 in brutal tone", "strength2 in brutal tone"],
+    "soft": ["strength1 in soft tone", "strength2 in soft tone"],
+    "professional": ["strength1 in professional tone", "strength2 in professional tone"],
+    "witty": ["strength1 in witty tone", "strength2 in witty tone"],
+    "motivational": ["strength1 in motivational tone", "strength2 in motivational tone"]
+  },
+  "improvements": {
+    "brutal": ["improvement1 in brutal tone", "improvement2 in brutal tone"],
+    "soft": ["improvement1 in soft tone", "improvement2 in soft tone"],
+    "professional": ["improvement1 in professional tone", "improvement2 in professional tone"],
+    "witty": ["improvement1 in witty tone", "improvement2 in witty tone"],
+    "motivational": ["improvement1 in motivational tone", "improvement2 in motivational tone"]
+  }
+}
+
+Tone Guidelines:
+- Brutal: Direct, unfiltered, no sugarcoating but still factual
+- Soft: Kind, encouraging, gentle but still honest about issues
+- Professional: Clean, structured, corporate-like
+- Witty: Fun, humorous, sarcastic but still truthful
+- Motivational: Coach-like, inspiring, energetic but realistic`
     },
     {
       role: 'user',
-      content: `Create a detailed summary for this candidate:
+      content: `Generate mood variations for this candidate:
 
-RESUME TEXT:
-${resumeText}
+RESUME TEXT: ${resumeText.substring(0, 2000)}...
 
 DETECTED ROLE: ${roleAnalysis.detectedRole || 'Professional'}
 SENIORITY: ${seniorityAnalysis.level || 'Mid-level'} (${seniorityAnalysis.yearsExperience || 'several'} years)
 KEY SKILLS: ${extractedSkills.slice(0, 8).join(', ')}
 
-Write a comprehensive 5-6 line summary covering their background, experience, skills, and career focus.`
+CORE STRENGTHS: ${strengths.join(', ')}
+CORE IMPROVEMENTS: ${improvements.join(', ')}
+
+Generate all 5 mood variations maintaining the same core facts and feedback depth.`
     }
   ];
 
   try {
-    const response = await makeGroqRequest(messages, apiKey);
-    console.log('Summary generation raw response:', response);
+    const response = await makeGroqRequest(messages, apiKey, 0.3);
+    console.log('All mood content generation raw response:', response);
     
-    // Clean up the response to extract just the summary
-    const cleanSummary = response
-      .replace(/```.*?```/gs, '') // Remove code blocks
-      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
-      .replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
-      .trim();
+    const fallback = {
+      summaries: {
+        brutal: `Look, you're a ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years. Time to face reality and fix what's broken.`,
+        soft: `You're such a wonderful ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of beautiful experience! 💕`,
+        professional: `Executive Summary: ${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of demonstrated experience.`,
+        witty: `Well, well... a ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years under their belt. Let's see what we're working with! 😏`,
+        motivational: `CHAMPION! You're a ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of EXPERIENCE! 🚀`
+      },
+      strengthsVariations: {
+        brutal: strengths.map(s => `Fine, you got this right: ${s}`),
+        soft: strengths.map(s => `You're doing amazing with: ${s} ✨`),
+        professional: strengths.map(s => `✓ Demonstrated competency: ${s}`),
+        witty: strengths.map(s => `Not gonna lie, this is solid: ${s} 👌`),
+        motivational: strengths.map(s => `CRUSHING IT with: ${s}! 💪`)
+      },
+      improvementsVariations: {
+        brutal: improvements.map(i => `Stop ignoring this: ${i}`),
+        soft: improvements.map(i => `With love, consider: ${i} 🌱`),
+        professional: improvements.map(i => `→ Strategic recommendation: ${i}`),
+        witty: improvements.map(i => `Here's the tea: ${i} ☕`),
+        motivational: improvements.map(i => `LEVEL UP opportunity: ${i}! 🎯`)
+      }
+    };
+
+    const validator = (obj: any) => {
+      return obj.summaries && obj.strengths && obj.improvements &&
+             typeof obj.summaries.brutal === 'string' &&
+             Array.isArray(obj.strengths.brutal) &&
+             Array.isArray(obj.improvements.brutal);
+    };
+
+    const result = parseWithFallback(response, fallback, validator);
     
-    return cleanSummary || `${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience in ${extractedSkills.slice(0, 3).join(', ')} and related technologies.`;
+    return {
+      summaries: result.summaries || fallback.summaries,
+      strengthsVariations: result.strengths || fallback.strengthsVariations,
+      improvementsVariations: result.improvements || fallback.improvementsVariations
+    };
   } catch (error) {
-    console.error('Summary generation failed:', error);
-    return `${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience in ${extractedSkills.slice(0, 3).join(', ')} and related technologies.`;
+    console.error('All mood content generation failed:', error);
+    // Return fallback content
+    return {
+      summaries: {
+        brutal: `Look, you're a ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years. Time to face reality.`,
+        soft: `You're a wonderful ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience! 💕`,
+        professional: `Executive Summary: ${seniorityAnalysis.level || 'Professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years of experience.`,
+        witty: `A ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years. Let's see what we're working with! 😏`,
+        motivational: `CHAMPION! You're a ${seniorityAnalysis.level || 'professional'} ${roleAnalysis.detectedRole || 'candidate'} with ${seniorityAnalysis.yearsExperience || 'several'} years! 🚀`
+      },
+      strengthsVariations: {
+        brutal: strengths.map(s => `Fine, you got this right: ${s}`),
+        soft: strengths.map(s => `You're doing amazing with: ${s} ✨`),
+        professional: strengths.map(s => `✓ Demonstrated competency: ${s}`),
+        witty: strengths.map(s => `Not gonna lie, this is solid: ${s} 👌`),
+        motivational: strengths.map(s => `CRUSHING IT with: ${s}! 💪`)
+      },
+      improvementsVariations: {
+        brutal: improvements.map(i => `Stop ignoring this: ${i}`),
+        soft: improvements.map(i => `With love, consider: ${i} 🌱`),
+        professional: improvements.map(i => `→ Strategic recommendation: ${i}`),
+        witty: improvements.map(i => `Here's the tea: ${i} ☕`),
+        motivational: improvements.map(i => `LEVEL UP opportunity: ${i}! 🎯`)
+      }
+    };
   }
 };
 
@@ -651,14 +742,28 @@ export class HuggingFaceService {
         analyzeConsistencyWithGroq(resumeText, this.apiKey)
       ]);
 
-      // Generate comprehensive summary
-      const comprehensiveSummary = await generateMoodAwareSummary(
-        resumeText, 
-        roleAnalysis, 
-        seniorityAnalysis, 
-        extractedSkills, 
-        this.apiKey, 
-        mood
+      // Generate basic strengths and improvements
+      const basicStrengths = [
+        `Strong ${roleAnalysis.detectedRole || 'professional'} background`,
+        `${extractedSkills.length} technical skills identified`,
+        `${seniorityAnalysis.level || 'Professional'} level experience`
+      ];
+      
+      const basicImprovements = [
+        'Consider adding more quantified achievements',
+        'Strengthen action verbs in job descriptions',
+        'Ensure consistent formatting throughout'
+      ];
+
+      // Generate all mood variations upfront
+      const moodContent = await generateAllMoodContent(
+        resumeText,
+        roleAnalysis,
+        seniorityAnalysis,
+        extractedSkills,
+        basicStrengths,
+        basicImprovements,
+        this.apiKey
       );
 
       console.log('=== ANALYSIS RESULTS ===');
@@ -666,7 +771,6 @@ export class HuggingFaceService {
       console.log('Extracted Skills:', extractedSkills);
       console.log('Seniority Analysis:', seniorityAnalysis);
       console.log('Soft Skills Analysis:', softSkillsAnalysis);
-      console.log('Generated Summary:', comprehensiveSummary);
       console.log('=== END ANALYSIS RESULTS ===');
 
       // Calculate detailed scores
@@ -689,18 +793,17 @@ export class HuggingFaceService {
       const result: AnalysisResult = {
         overallScore,
         detailedScores,
-        strengths: [
-          `Strong ${roleAnalysis.detectedRole || 'professional'} background`,
-          `${extractedSkills.length} technical skills identified`,
-          `${seniorityAnalysis.level || 'Professional'} level experience`
-        ],
-        improvements: [
-          'Consider adding more quantified achievements',
-          'Strengthen action verbs in job descriptions',
-          'Ensure consistent formatting throughout'
-        ],
+        strengths: basicStrengths,
+        improvements: basicImprovements,
         extractedSkills,
-        summary: comprehensiveSummary,
+        summary: moodContent.summaries.professional, // Default to professional
+        
+        // Store all mood variations
+        allMoodContent: {
+          summaries: moodContent.summaries,
+          strengths: moodContent.strengthsVariations,
+          improvements: moodContent.improvementsVariations
+        },
         
         quantificationAnalysis,
         actionVerbAnalysis,
@@ -758,17 +861,10 @@ export class HuggingFaceService {
       console.log('Seniority Level:', result.seniorityEstimation.level);
       console.log('Skills Count:', result.extractedSkills.length);
       console.log('Soft Skills:', result.softSkillsInference);
+      console.log('All Mood Content Generated:', !!result.allMoodContent);
       console.log('=== END FINAL RESULT ===');
 
-      // Apply mood-specific transformations
-      const moodResult = MoodAnalyzer.applyMoodToAnalysis(result, mood);
-      
-      console.log('=== MOOD-ENHANCED RESULT ===');
-      console.log('Applied mood:', mood);
-      console.log('Mood-specific summary:', moodResult.moodSpecificSummary);
-      console.log('=== END MOOD-ENHANCED RESULT ===');
-
-      return moodResult;
+      return result;
     } catch (error) {
       console.error('Resume analysis failed:', error);
       throw error; // Re-throw the original error to preserve the specific error message

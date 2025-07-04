@@ -46,6 +46,26 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
   // Get mood-specific theme
   const moodTheme = MoodAnalyzer.getMoodTheme(mood);
 
+  // Get mood-specific content from pre-generated variations
+  const getMoodContent = () => {
+    if (result.allMoodContent) {
+      return {
+        summary: result.allMoodContent.summaries[mood] || result.summary,
+        strengths: result.allMoodContent.strengths[mood] || result.strengths,
+        improvements: result.allMoodContent.improvements[mood] || result.improvements
+      };
+    }
+    
+    // Fallback to original content if mood variations not available
+    return {
+      summary: result.summary,
+      strengths: result.strengths,
+      improvements: result.improvements
+    };
+  };
+
+  const moodContent = getMoodContent();
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -148,7 +168,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
       </div>
 
       {/* Mood-Specific Summary */}
-      {result.moodSpecificSummary && (
+      {moodContent.summary && (
         <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
           <h3 className={`text-lg font-semibold mb-3 ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
             {mood === 'brutal' && '💀 Reality Check'}
@@ -158,19 +178,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
             {mood === 'motivational' && '🚀 Champion Summary'}
           </h3>
           <p className={`leading-relaxed ${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
-            {result.moodSpecificSummary}
-          </p>
-        </div>
-      )}
-      
-      {/* Fallback to regular summary if mood-specific isn't available */}
-      {!result.moodSpecificSummary && result.summary && (
-        <div className={`rounded-xl shadow-sm border p-6 ${mood !== 'professional' ? moodTheme.cardBg + ' ' + moodTheme.borderColor : 'bg-white border-slate-200'}`}>
-          <h3 className={`text-lg font-semibold mb-3 ${mood !== 'professional' ? moodTheme.textColor : 'text-slate-800'}`}>
-            📋 Resume Summary
-          </h3>
-          <p className={`leading-relaxed ${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
-            {result.summary}
+            {moodContent.summary}
           </p>
         </div>
       )}
@@ -491,7 +499,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </h3>
           
           <div className="space-y-3">
-            {((result?.moodSpecificStrengths || result?.strengths) ?? []).map((strength, index) => (
+            {(moodContent.strengths ?? []).map((strength, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                 <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
@@ -514,7 +522,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </h3>
           
           <div className="space-y-3">
-            {((result?.moodSpecificImprovements || result?.improvements) ?? []).map((improvement, index) => (
+            {(moodContent.improvements ?? []).map((improvement, index) => (
               <div key={index} className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
                 <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                 <p className={`${mood !== 'professional' ? moodTheme.textColor + ' ' + moodTheme.font : 'text-slate-700'}`}>
