@@ -1,6 +1,7 @@
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import { getDocument } from 'pdfjs-dist';
+import { createWorker } from 'tesseract.js';
 import workerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker using local worker file for WebContainer compatibility
@@ -115,6 +116,7 @@ export class ResumeParser {
 
   /**
    * Extract text from PDF using pdfjs-dist with local worker
+   * Includes OCR fallback for image-based PDFs
    */
   private static async extractFromPDF(file: File): Promise<string> {
     try {
@@ -197,8 +199,30 @@ export class ResumeParser {
       // Final text cleanup
       fullText = this.cleanExtractedText(fullText);
       
-      if (!fullText.trim()) {
-        throw new Error('PDF appears to contain no readable text. It may be image-based or corrupted.');
+      // Check if we have sufficient text content
+      const textLength = fullText.trim().length;
+      console.log(`📊 Extracted text length: ${textLength} characters`);
+      
+      // If text is too short, try OCR fallback
+      if (textLength < 100) {
+        console.log('⚠️ Insufficient text extracted, attempting OCR fallback...');
+        try {
+          const ocrText = await this.extractTextWithOCR(arrayBuffer);
+          if (ocrText && ocrText.trim().length > textLength) {
+            console.log(`✅ OCR extracted ${ocrText.length} characters, using OCR result`);
+            fullText = ocrText;
+          } else {
+            console.log('❌ OCR did not improve text extraction');
+          }
+        } catch (ocrError) {
+          console.warn('⚠️ OCR fallback failed:', ocrError);
+          // Continue with original text even if OCR fails
+        }
+      }
+      
+      // Final validation
+      if (!fullText.trim() || fullText.trim().length < 50) {
+        throw new Error('PDF appears to contain no readable text. This may be an image-based PDF without a text layer, or the file may be corrupted. Please try converting to a text-based PDF or use a different file format.');
       }
       
       console.log(`✅ PDF extraction complete: ${fullText.length} characters from ${pdf.numPages} pages`);
@@ -213,6 +237,114 @@ export class ResumeParser {
       }
       throw new Error(`PDF extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Extract text using OCR as fallback for image-based PDFs
+   */
+  private static async extractTextWithOCR(pdfBuffer: ArrayBuffer): Promise<string> {
+    console.log('🔍 Starting OCR extraction...');
+    
+    try {
+      // Convert PDF pages to images and extract text using OCR
+      const pdf = await getDocument({ data: pdfBuffer }).promise;
+      let ocrText = '';
+      
+      // Limit OCR to first 3 pages for performance
+      const maxPages = Math.min(pdf.numPages, 3);
+      console.log(`📄 Processing ${maxPages} pages with OCR...`);
+      
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        console.log(`🔍 OCR processing page ${pageNum}/${maxPages}...`);
+        
+        try {
+          const page = await pdf.getPage(pageNum);
+          
+          // Render page to canvas
+          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          
+          if (!context) {
+            console.warn(`⚠️ Could not get canvas context for page ${pageNum}`);
+            continue;
+          }
+          
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          
+          // Render PDF page to canvas
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+          
+          // Convert canvas to image data for OCR
+          const imageData = canvas.toDataURL('image/png');
+          
+          // Create Tesseract worker
+          const worker = await createWorker('eng');
+          
+          // Perform OCR
+          const { data: { text } } = await worker.recognize(imageData);
+          
+          // Clean up worker
+          await worker.terminate();
+          
+          if (text && text.trim().length > 0) {
+            ocrText += text + '\n';
+            console.log(`✅ OCR page ${pageNum}: ${text.length} characters extracted`);
+          } else {
+            console.log(`⚠️ OCR page ${pageNum}: No text found`);
+          }
+          
+        } catch (pageError) {
+          console.warn(`⚠️ OCR failed for page ${pageNum}:`, pageError);
+          continue; // Skip this page and continue with others
+        }
+      }
+      
+      // Clean up OCR text
+      ocrText = this.cleanOCRText(ocrText);
+      
+      console.log(`✅ OCR extraction complete: ${ocrText.length} characters total`);
+      return ocrText;
+      
+    } catch (error) {
+      console.error('❌ OCR extraction failed:', error);
+      throw new Error(`OCR extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Clean OCR-extracted text
+   */
+  private static cleanOCRText(text: string): string {
+    let cleaned = text;
+    
+    // Fix common OCR errors
+    cleaned = cleaned.replace(/[|]/g, 'I'); // Common OCR mistake
+    cleaned = cleaned.replace(/[0]/g, 'O'); // Zero to O in names
+    cleaned = cleaned.replace(/(\w)[1](\w)/g, '$1l$2'); // 1 to l in words
+    cleaned = cleaned.replace(/(\w)[5](\w)/g, '$1S$2'); // 5 to S in words
+    
+    // Remove excessive whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+    
+    // Remove lines that are likely OCR artifacts
+    const lines = cleaned.split('\n');
+    const filteredLines = lines.filter(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 0 && 
+             !trimmed.match(/^[^\w\s]*$/) && // Not just symbols
+             !trimmed.match(/^[A-Z\s]{1,3}$/) && // Not just 1-3 capital letters
+             trimmed.length < 200; // Not extremely long (likely corrupted)
+    });
+    
+    cleaned = filteredLines.join('\n').trim();
+    
+    return cleaned;
   }
 
   /**
@@ -264,6 +396,7 @@ export class ResumeParser {
     
     return cleaned.trim();
   }
+  
   /**
    * Extract text from Word document using mammoth
    */

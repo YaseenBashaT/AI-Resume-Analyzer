@@ -127,24 +127,24 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled =
           <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Zap className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-slate-800">AI Analysis Ready</span>
+              <span className="text-sm font-medium text-slate-800">Advanced AI Analysis Ready</span>
             </div>
             <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
               <div className="flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-green-500" />
-                <span>Lightning-fast processing</span>
+                <span>Text + OCR extraction</span>
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-green-500" />
-                <span>Advanced AI insights</span>
+                <span>Image-based PDF support</span>
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-green-500" />
-                <span>Multi-domain skills detection</span>
+                <span>Lightning-fast AI analysis</span>
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-green-500" />
-                <span>Intelligent analysis</span>
+                <span>Multi-format support</span>
               </div>
             </div>
           </div>

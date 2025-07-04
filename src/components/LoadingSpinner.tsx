@@ -14,21 +14,21 @@ export const LoadingSpinner: React.FC = () => {
         
         <div className="space-y-3">
           <h3 className="text-xl font-semibold text-slate-800">Analyzing Your Resume with AI</h3>
-          <p className="text-slate-600">Lightning-fast AI analysis in progress...</p>
+          <p className="text-slate-600">Advanced text extraction and AI analysis in progress...</p>
         </div>
         
         <div className="flex items-center justify-center space-x-8 text-sm text-slate-500">
           <div className="flex items-center space-x-2">
             <Zap className="w-4 h-4 animate-pulse text-green-500" />
-            <span>Extracting content</span>
+            <span>Smart text extraction</span>
           </div>
           <div className="flex items-center space-x-2">
             <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-            <span>AI analysis</span>
+            <span>OCR processing</span>
           </div>
           <div className="flex items-center space-x-2">
             <Loader2 className="w-4 h-4 animate-spin text-purple-500" style={{ animationDelay: '0.5s' }} />
-            <span>Generating insights</span>
+            <span>AI analysis</span>
           </div>
         </div>
         
