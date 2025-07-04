@@ -1,5 +1,7 @@
 import type { AnalysisResult, JobDescriptionMatch } from '../types/analysis';
 import { ResumeParser } from './resumeParser';
+import { MoodAnalyzer } from './moodAnalyzer';
+import type { AnalysisMood } from '../components/MoodSelector';
 
 // Debug function to log resume content
 const debugResumeContent = (text: string, functionName: string) => {
@@ -508,11 +510,12 @@ export class HuggingFaceService {
     console.log('🔧 HuggingFaceService initialized with API key length:', apiKey.length);
   }
 
-  async analyzeResume(file: File): Promise<AnalysisResult> {
+  async analyzeResume(file: File, mood: AnalysisMood = 'professional'): Promise<AnalysisResult> {
     console.log('=== STARTING RESUME ANALYSIS ===');
     console.log('File name:', file.name);
     console.log('File size:', file.size);
     console.log('File type:', file.type);
+    console.log('Analysis mood:', mood);
     console.log('Using API key length:', this.apiKey.length);
     
     // Extract text using the new ResumeParser
@@ -647,7 +650,15 @@ export class HuggingFaceService {
       console.log('Soft Skills:', result.softSkillsInference);
       console.log('=== END FINAL RESULT ===');
 
-      return result;
+      // Apply mood-specific transformations
+      const moodResult = MoodAnalyzer.applyMoodToAnalysis(result, mood);
+      
+      console.log('=== MOOD-ENHANCED RESULT ===');
+      console.log('Applied mood:', mood);
+      console.log('Mood-specific summary:', moodResult.moodSpecificSummary);
+      console.log('=== END MOOD-ENHANCED RESULT ===');
+
+      return moodResult;
     } catch (error) {
       console.error('Resume analysis failed:', error);
       throw error; // Re-throw the original error to preserve the specific error message
@@ -724,9 +735,9 @@ ${jobDescription}`
 };
 
 // Legacy exports for backward compatibility
-export const analyzeResume = async (file: File, apiKey: string): Promise<AnalysisResult> => {
+export const analyzeResume = async (file: File, apiKey: string, mood: AnalysisMood = 'professional'): Promise<AnalysisResult> => {
   const service = new HuggingFaceService(apiKey);
-  return service.analyzeResume(file);
+  return service.analyzeResume(file, mood);
 };
 
 export const compareWithJobDescription = async (

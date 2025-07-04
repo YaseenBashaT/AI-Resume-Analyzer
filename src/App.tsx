@@ -5,7 +5,9 @@ import { ApiKeyInput } from './components/ApiKeyInput';
 import { JobDescriptionInput } from './components/JobDescriptionInput';
 import { Header } from './components/Header';
 import { LoadingSpinner } from './components/LoadingSpinner';
+import { MoodSelector, type AnalysisMood } from './components/MoodSelector';
 import { HuggingFaceService } from './services/huggingface';
+import { MoodAnalyzer } from './services/moodAnalyzer';
 import type { AnalysisResult, JobDescriptionMatch } from './types/analysis';
 
 function App() {
@@ -15,6 +17,7 @@ function App() {
   const [resumeText, setResumeText] = useState<string>('');
   const [apiKey, setApiKey] = useState<string>('');
   const [useOwnApi, setUseOwnApi] = useState<boolean>(false);
+  const [selectedMood, setSelectedMood] = useState<AnalysisMood>('professional');
 
   // Updated default API key with the new one you provided
   const defaultApiKey = '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';
@@ -43,7 +46,7 @@ function App() {
       console.log('📁 File:', file.name, 'Size:', file.size, 'Type:', file.type);
       console.log('🔑 API Mode:', useOwnApi ? 'User API' : 'Default API');
       
-      const result = await huggingFaceService.analyzeResume(file);
+      const result = await huggingFaceService.analyzeResume(file, selectedMood);
       setAnalysisResult(result);
       // Store resume text for job matching
       const text = await file.text();
@@ -94,12 +97,20 @@ function App() {
     console.log('🔄 Switched API mode to:', useOwn ? 'User API' : 'Default API');
   };
 
+  // Get mood-specific theme
+  const moodTheme = MoodAnalyzer.getMoodTheme(selectedMood);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50">
+    <div className={`min-h-screen bg-gradient-to-br ${moodTheme.bgGradient}`}>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <Header />
         
         <div className="mt-12 space-y-8">
+          <MoodSelector 
+            selectedMood={selectedMood} 
+            onMoodChange={setSelectedMood}
+          />
+          
           <ApiKeyInput 
             value={apiKey} 
             onChange={setApiKey}
@@ -117,7 +128,11 @@ function App() {
             <LoadingSpinner />
           ) : analysisResult ? (
             <div className="space-y-8">
-              <AnalysisResults result={analysisResult} onReset={handleReset} />
+              <AnalysisResults 
+                result={analysisResult} 
+                onReset={handleReset}
+                mood={selectedMood}
+              />
               
               {/* Job Description Matching */}
               <JobDescriptionInput 
@@ -126,7 +141,10 @@ function App() {
               />
             </div>
           ) : (
-            <FileUpload onFileUpload={handleFileUpload} />
+            <FileUpload 
+              onFileUpload={handleFileUpload}
+              mood={selectedMood}
+            />
           )}
         </div>
         

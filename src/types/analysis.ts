@@ -1,5 +1,6 @@
 export interface AnalysisResult {
   overallScore: number;
+  mood?: 'brutal' | 'soft' | 'professional' | 'witty' | 'motivational';
   detailedScores: {
     contactInformation: number;
     workExperience: number;
@@ -104,6 +105,11 @@ export interface AnalysisResult {
     addresses: string[];
     socialMedia: string[];
   };
+  
+  // Mood-specific content
+  moodSpecificSummary?: string;
+  moodSpecificStrengths?: string[];
+  moodSpecificImprovements?: string[];
 }
 
 export interface JobDescriptionMatch {
