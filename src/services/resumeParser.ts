@@ -362,8 +362,7 @@ export class ResumeParser {
     
     for (let i = 0; i < remainingLines.length; i++) {
       const line = remainingLines[i].trim();
-    );
-    
+      
       if (!line) continue;
 
       // Check if this line is a section header
