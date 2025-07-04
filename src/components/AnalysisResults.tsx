@@ -564,22 +564,108 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
             Privacy & PII Detection
           </h3>
           
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Email Addresses:</span>
-              <span className="font-medium">{result?.piiDetected?.emails?.length ?? 0}</span>
+          <div className="space-y-4">
+            {/* Summary counts */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+                <span className="text-slate-600">Email:</span>
+                <span className="font-medium text-blue-700">{result?.piiDetected?.emails?.length ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                <span className="text-slate-600">Phone:</span>
+                <span className="font-medium text-green-700">{result?.piiDetected?.phones?.length ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                <span className="text-slate-600">Social:</span>
+                <span className="font-medium text-purple-700">{result?.piiDetected?.socialMedia?.length ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
+                <span className="text-slate-600">Address:</span>
+                <span className="font-medium text-orange-700">{result?.piiDetected?.addresses?.length ?? 0}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Phone Numbers:</span>
-              <span className="font-medium">{result?.piiDetected?.phones?.length ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Social Media:</span>
-              <span className="font-medium">{result?.piiDetected?.socialMedia?.length ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Addresses:</span>
-              <span className="font-medium">{result?.piiDetected?.addresses?.length ?? 0}</span>
+            
+            {/* Detailed information */}
+            <div className="space-y-3">
+              {/* Email addresses */}
+              {(result?.piiDetected?.emails?.length ?? 0) > 0 && (
+                <div>
+                  <h4 className="font-medium text-slate-800 mb-2 flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    Email Addresses ({result?.piiDetected?.emails?.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(result?.piiDetected?.emails ?? []).map((email, index) => (
+                      <span key={index} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-mono">
+                        {email}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Phone numbers */}
+              {(result?.piiDetected?.phones?.length ?? 0) > 0 && (
+                <div>
+                  <h4 className="font-medium text-slate-800 mb-2 flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    Phone Numbers ({result?.piiDetected?.phones?.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(result?.piiDetected?.phones ?? []).map((phone, index) => (
+                      <span key={index} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-mono">
+                        {phone}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Social media */}
+              {(result?.piiDetected?.socialMedia?.length ?? 0) > 0 && (
+                <div>
+                  <h4 className="font-medium text-slate-800 mb-2 flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+                    Social Media & Websites ({result?.piiDetected?.socialMedia?.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(result?.piiDetected?.socialMedia ?? []).map((social, index) => (
+                      <span key={index} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-mono">
+                        {social}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Addresses */}
+              {(result?.piiDetected?.addresses?.length ?? 0) > 0 && (
+                <div>
+                  <h4 className="font-medium text-slate-800 mb-2 flex items-center">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
+                    Addresses ({result?.piiDetected?.addresses?.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(result?.piiDetected?.addresses ?? []).map((address, index) => (
+                      <span key={index} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-mono">
+                        {address}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* No PII detected message */}
+              {(result?.piiDetected?.emails?.length ?? 0) === 0 && 
+               (result?.piiDetected?.phones?.length ?? 0) === 0 && 
+               (result?.piiDetected?.socialMedia?.length ?? 0) === 0 && 
+               (result?.piiDetected?.addresses?.length ?? 0) === 0 && (
+                <div className="text-center py-4 text-slate-500">
+                  <Shield className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                  <p>No personal information detected in resume</p>
+                  <p className="text-xs mt-1">Consider adding contact information for better visibility</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

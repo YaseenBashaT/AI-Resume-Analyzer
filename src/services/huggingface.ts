@@ -552,6 +552,111 @@ Return ONLY a JSON object (no markdown, no explanations):
   }
 };
 
+// Enhanced PII detection function
+const detectPIIInformation = (resumeText: string) => {
+  console.log('🔍 Detecting PII information in resume...');
+  
+  const piiData = {
+    emails: [] as string[],
+    phones: [] as string[],
+    addresses: [] as string[],
+    socialMedia: [] as string[]
+  };
+
+  // Email detection - comprehensive patterns
+  const emailPatterns = [
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    /\b[A-Za-z0-9._%+-]+\s*@\s*[A-Za-z0-9.-]+\s*\.\s*[A-Z|a-z]{2,}\b/g
+  ];
+  
+  emailPatterns.forEach(pattern => {
+    const matches = resumeText.match(pattern);
+    if (matches) {
+      matches.forEach(email => {
+        const cleanEmail = email.replace(/\s/g, '').toLowerCase();
+        if (!piiData.emails.includes(cleanEmail)) {
+          piiData.emails.push(cleanEmail);
+        }
+      });
+    }
+  });
+
+  // Phone number detection - multiple formats
+  const phonePatterns = [
+    /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g, // US format
+    /\b(\+\d{1,3}[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g, // International
+    /\b\+?[\d\s\-\(\)]{10,15}\b/g, // General international
+    /\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/g, // XXX-XXX-XXXX
+    /\b\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b/g // (XXX) XXX-XXXX
+  ];
+  
+  phonePatterns.forEach(pattern => {
+    const matches = resumeText.match(pattern);
+    if (matches) {
+      matches.forEach(phone => {
+        const cleanPhone = phone.replace(/[^\d+]/g, '');
+        // Only include if it looks like a valid phone number (10+ digits)
+        if (cleanPhone.length >= 10 && !piiData.phones.includes(phone.trim())) {
+          piiData.phones.push(phone.trim());
+        }
+      });
+    }
+  });
+
+  // Social media detection
+  const socialPatterns = [
+    /linkedin\.com\/in\/[A-Za-z0-9\-_]+/gi,
+    /github\.com\/[A-Za-z0-9\-_]+/gi,
+    /twitter\.com\/[A-Za-z0-9\-_]+/gi,
+    /instagram\.com\/[A-Za-z0-9\-_]+/gi,
+    /facebook\.com\/[A-Za-z0-9\-_.]+/gi,
+    /portfolio\s*:\s*[A-Za-z0-9\-_.\/]+/gi,
+    /website\s*:\s*[A-Za-z0-9\-_.\/]+/gi,
+    /(www\.)?[A-Za-z0-9\-]+\.[A-Za-z]{2,}\/[A-Za-z0-9\-_\/]*/gi
+  ];
+  
+  socialPatterns.forEach(pattern => {
+    const matches = resumeText.match(pattern);
+    if (matches) {
+      matches.forEach(social => {
+        if (!piiData.socialMedia.includes(social.trim())) {
+          piiData.socialMedia.push(social.trim());
+        }
+      });
+    }
+  });
+
+  // Address detection - comprehensive patterns
+  const addressPatterns = [
+    /\b\d{1,5}\s+\w+\s+(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|place|pl|court|ct|circle|cir)\b/gi,
+    /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}(-\d{4})?\b/g, // City, State ZIP
+    /\b[A-Z][a-z]+\s*,\s*[A-Z][a-z]+\s*,?\s*[A-Z]{2,3}\s*\d{5}(-\d{4})?\b/g, // City, State, Country ZIP
+    /\b\d{5}(-\d{4})?\s+[A-Z][a-z]+\s*,\s*[A-Z]{2}\b/g, // ZIP City, State
+    /\bP\.?O\.?\s+Box\s+\d+/gi, // PO Box
+    /\b\d+\s+[A-Z][a-z]+\s+(Street|Avenue|Road|Drive|Lane|Boulevard|Way|Place|Court|Circle)/gi
+  ];
+  
+  addressPatterns.forEach(pattern => {
+    const matches = resumeText.match(pattern);
+    if (matches) {
+      matches.forEach(address => {
+        if (!piiData.addresses.includes(address.trim())) {
+          piiData.addresses.push(address.trim());
+        }
+      });
+    }
+  });
+
+  console.log('✅ PII Detection Results:', {
+    emails: piiData.emails.length,
+    phones: piiData.phones.length,
+    addresses: piiData.addresses.length,
+    socialMedia: piiData.socialMedia.length
+  });
+
+  return piiData;
+};
+
 // Generate mood-aware content for all moods at once
 const generateAllMoodContent = async (
   resumeText: string, 
@@ -755,6 +860,9 @@ export class HuggingFaceService {
         'Ensure consistent formatting throughout'
       ];
 
+      // Detect PII information
+      const piiDetected = detectPIIInformation(resumeText);
+
       // Generate all mood variations upfront
       const moodContent = await generateAllMoodContent(
         resumeText,
@@ -771,11 +879,13 @@ export class HuggingFaceService {
       console.log('Extracted Skills:', extractedSkills);
       console.log('Seniority Analysis:', seniorityAnalysis);
       console.log('Soft Skills Analysis:', softSkillsAnalysis);
+      console.log('PII Detected:', piiDetected);
       console.log('=== END ANALYSIS RESULTS ===');
 
       // Calculate detailed scores
       const detailedScores = {
-        contactInformation: 85, // Mock for now
+        contactInformation: piiDetected.emails.length > 0 ? 95 : 
+                           (piiDetected.phones.length > 0 ? 80 : 40),
         workExperience: 80,
         education: 75,
         skills: extractedSkills.length > 0 ? 90 : 20,
@@ -847,12 +957,7 @@ export class HuggingFaceService {
           suggestions: []
         },
         missingSections: [],
-        piiDetected: {
-          emails: [],
-          phones: [],
-          addresses: [],
-          socialMedia: []
-        }
+        piiDetected
       };
 
       console.log('=== FINAL RESULT ===');
@@ -862,6 +967,12 @@ export class HuggingFaceService {
       console.log('Skills Count:', result.extractedSkills.length);
       console.log('Soft Skills:', result.softSkillsInference);
       console.log('All Mood Content Generated:', !!result.allMoodContent);
+      console.log('Contact Info Detected:', {
+        emails: result.piiDetected.emails.length,
+        phones: result.piiDetected.phones.length,
+        addresses: result.piiDetected.addresses.length,
+        socialMedia: result.piiDetected.socialMedia.length
+      });
       console.log('=== END FINAL RESULT ===');
 
       return result;
