@@ -28,11 +28,11 @@ export const LoadingSpinner: React.FC = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Loader2 className="w-4 h-4 animate-spin text-purple-500" style={{ animationDelay: '0.5s' }} />
-            <span>OCR processing</span>
+            <span>AI analysis</span>
           </div>
         </div>
         
-            <span>AI analysis</span>
+        <div className="w-full bg-slate-200 rounded-full h-2">
           <div className="bg-gradient-to-r from-green-500 to-blue-600 h-2 rounded-full animate-pulse" style={{ width: '75%' }}></div>
         </div>
         
