@@ -118,7 +118,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
               <span className="font-medium text-green-800">Ready to Analyze</span>
             </div>
             <p className="text-sm text-green-700">
-              Using our optimized Groq API integration for lightning-fast resume analysis.
+              Using our optimized Groq API integration with {import.meta.env.VITE_GROQ_MODEL || 'LLaMA 3.1 8B Instant'} for lightning-fast resume analysis.
             </p>
           </div>
         ) : value && value !== 'default-key' ? (

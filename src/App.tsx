@@ -19,8 +19,8 @@ function App() {
   const [useOwnApi, setUseOwnApi] = useState<boolean>(false);
   const [selectedMood, setSelectedMood] = useState<AnalysisMood>('professional');
 
-  // Updated default API key with the new one you provided
-  const defaultApiKey = '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';
+  // Get API key from environment variables
+  const defaultApiKey = import.meta.env.VITE_GROQ_API_KEY || '';
 
   // Create HuggingFace service instance with appropriate API key
   const huggingFaceService = useMemo(() => {

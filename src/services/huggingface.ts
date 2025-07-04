@@ -121,7 +121,7 @@ const makeGroqRequest = async (messages: any[], apiKey: string, temperature = 0.
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant',
           messages,
           temperature,
           max_tokens: 2000,
