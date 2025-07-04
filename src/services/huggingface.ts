@@ -555,6 +555,7 @@ Return ONLY a JSON object (no markdown, no explanations):
 // Enhanced PII detection function
 const detectPIIInformation = (resumeText: string) => {
   console.log('🔍 Detecting PII information in resume...');
+  console.log('Resume text sample for PII detection:', resumeText.substring(0, 500));
   
   const piiData = {
     emails: [] as string[],
@@ -565,13 +566,15 @@ const detectPIIInformation = (resumeText: string) => {
 
   // Email detection - comprehensive patterns
   const emailPatterns = [
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-    /\b[A-Za-z0-9._%+-]+\s*@\s*[A-Za-z0-9.-]+\s*\.\s*[A-Z|a-z]{2,}\b/g
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/gi,
+    /\b[A-Za-z0-9._%+-]+\s*@\s*[A-Za-z0-9.-]+\s*\.\s*[A-Z|a-z]{2,}\b/gi,
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gi
   ];
   
   emailPatterns.forEach(pattern => {
     const matches = resumeText.match(pattern);
     if (matches) {
+      console.log('Found email matches:', matches);
       matches.forEach(email => {
         const cleanEmail = email.replace(/\s/g, '').toLowerCase();
         if (!piiData.emails.includes(cleanEmail)) {
@@ -583,21 +586,26 @@ const detectPIIInformation = (resumeText: string) => {
 
   // Phone number detection - multiple formats
   const phonePatterns = [
-    /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g, // US format
-    /\b(\+\d{1,3}[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g, // International
-    /\b\+?[\d\s\-\(\)]{10,15}\b/g, // General international
-    /\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/g, // XXX-XXX-XXXX
-    /\b\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b/g // (XXX) XXX-XXXX
+    /\b\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/gi,
+    /\b(\+\d{1,3}[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/gi,
+    /\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/gi,
+    /\b\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b/gi,
+    /\b\+1[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/gi,
+    /\b([0-9]{3})\.([0-9]{3})\.([0-9]{4})\b/gi,
+    /\b([0-9]{3})\s([0-9]{3})\s([0-9]{4})\b/gi
   ];
   
+  const allPhoneMatches: string[] = [];
   phonePatterns.forEach(pattern => {
     const matches = resumeText.match(pattern);
     if (matches) {
+      console.log('Found phone matches with pattern:', pattern, matches);
       matches.forEach(phone => {
-        const cleanPhone = phone.replace(/[^\d+]/g, '');
-        // Only include if it looks like a valid phone number (10+ digits)
-        if (cleanPhone.length >= 10 && !piiData.phones.includes(phone.trim())) {
-          piiData.phones.push(phone.trim());
+        const trimmedPhone = phone.trim();
+        const digitsOnly = trimmedPhone.replace(/[^\d]/g, '');
+        // Only include if it has exactly 10 digits (US) or 11+ (international)
+        if ((digitsOnly.length === 10 || digitsOnly.length >= 11) && !allPhoneMatches.includes(trimmedPhone)) {
+          allPhoneMatches.push(trimmedPhone);
         }
       });
     }
@@ -605,7 +613,7 @@ const detectPIIInformation = (resumeText: string) => {
 
   // Deduplicate phone numbers by normalized format
   const uniquePhones = new Map<string, string>();
-  piiData.phones.forEach(phone => {
+  allPhoneMatches.forEach(phone => {
     const normalized = phone.replace(/[^\d]/g, ''); // Remove all non-digits
     if (!uniquePhones.has(normalized)) {
       uniquePhones.set(normalized, phone);
@@ -616,21 +624,35 @@ const detectPIIInformation = (resumeText: string) => {
   // Social media detection
   const socialPatterns = [
     /linkedin\.com\/in\/[A-Za-z0-9\-_]+/gi,
+    /linkedin\.com\/pub\/[A-Za-z0-9\-_]+/gi,
     /github\.com\/[A-Za-z0-9\-_]+/gi,
     /twitter\.com\/[A-Za-z0-9\-_]+/gi,
+    /x\.com\/[A-Za-z0-9\-_]+/gi,
     /instagram\.com\/[A-Za-z0-9\-_]+/gi,
     /facebook\.com\/[A-Za-z0-9\-_.]+/gi,
-    /portfolio\s*:\s*[A-Za-z0-9\-_.\/]+/gi,
-    /website\s*:\s*[A-Za-z0-9\-_.\/]+/gi,
-    /(www\.)?[A-Za-z0-9\-]+\.[A-Za-z]{2,}\/[A-Za-z0-9\-_\/]*/gi
+    /behance\.net\/[A-Za-z0-9\-_]+/gi,
+    /dribbble\.com\/[A-Za-z0-9\-_]+/gi,
+    /stackoverflow\.com\/users\/[A-Za-z0-9\-_\/]+/gi,
+    /medium\.com\/@[A-Za-z0-9\-_]+/gi,
+    /portfolio\s*:?\s*https?:\/\/[A-Za-z0-9\-_.\/]+/gi,
+    /website\s*:?\s*https?:\/\/[A-Za-z0-9\-_.\/]+/gi,
+    /https?:\/\/(www\.)?[A-Za-z0-9\-]+\.[A-Za-z]{2,}[A-Za-z0-9\-_\/.]*/gi,
+    /(www\.)?[A-Za-z0-9\-]+\.(com|net|org|io|dev|me|co)[A-Za-z0-9\-_\/.]*/gi
   ];
   
   socialPatterns.forEach(pattern => {
     const matches = resumeText.match(pattern);
     if (matches) {
+      console.log('Found social media matches:', matches);
       matches.forEach(social => {
-        if (!piiData.socialMedia.includes(social.trim())) {
-          piiData.socialMedia.push(social.trim());
+        const cleanSocial = social.trim();
+        // Filter out common false positives
+        if (!cleanSocial.includes('example.com') && 
+            !cleanSocial.includes('company.com') &&
+            !cleanSocial.includes('yoursite.com') &&
+            cleanSocial.length > 5 &&
+            !piiData.socialMedia.includes(cleanSocial)) {
+          piiData.socialMedia.push(cleanSocial);
         }
       });
     }
@@ -638,20 +660,28 @@ const detectPIIInformation = (resumeText: string) => {
 
   // Address detection - comprehensive patterns
   const addressPatterns = [
-    /\b\d{1,5}\s+\w+\s+(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|place|pl|court|ct|circle|cir)\b/gi,
-    /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}(-\d{4})?\b/g, // City, State ZIP
-    /\b[A-Z][a-z]+\s*,\s*[A-Z][a-z]+\s*,?\s*[A-Z]{2,3}\s*\d{5}(-\d{4})?\b/g, // City, State, Country ZIP
-    /\b\d{5}(-\d{4})?\s+[A-Z][a-z]+\s*,\s*[A-Z]{2}\b/g, // ZIP City, State
+    /\b\d{1,5}\s+[A-Za-z\s]+\s+(street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|lane|ln\.?|boulevard|blvd\.?|way|place|pl\.?|court|ct\.?|circle|cir\.?)\b/gi,
+    /\b[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}(-\d{4})?\b/gi,
+    /\b[A-Z][a-z]+\s*,\s*[A-Z][a-z]+\s*,?\s*[A-Z]{2,3}\s*\d{5}(-\d{4})?\b/gi,
+    /\b\d{5}(-\d{4})?\s+[A-Z][a-z]+\s*,\s*[A-Z]{2}\b/gi,
     /\bP\.?O\.?\s+Box\s+\d+/gi, // PO Box
-    /\b\d+\s+[A-Z][a-z]+\s+(Street|Avenue|Road|Drive|Lane|Boulevard|Way|Place|Court|Circle)/gi
+    /\b\d+\s+[A-Z][a-z\s]+\s+(Street|Avenue|Road|Drive|Lane|Boulevard|Way|Place|Court|Circle)/gi,
+    /\b[A-Z][a-z]+\s+[A-Z][a-z]+,\s*[A-Z]{2}\s+\d{5}/gi, // City State, ZIP
+    /\b\d{5}\s*[A-Z][a-z]+,?\s*[A-Z]{2}/gi // ZIP City, State
   ];
   
   addressPatterns.forEach(pattern => {
     const matches = resumeText.match(pattern);
     if (matches) {
+      console.log('Found address matches:', matches);
       matches.forEach(address => {
-        if (!piiData.addresses.includes(address.trim())) {
-          piiData.addresses.push(address.trim());
+        const cleanAddress = address.trim();
+        // Filter out obvious false positives
+        if (cleanAddress.length > 8 && 
+            !cleanAddress.toLowerCase().includes('experience') &&
+            !cleanAddress.toLowerCase().includes('education') &&
+            !piiData.addresses.includes(cleanAddress)) {
+          piiData.addresses.push(cleanAddress);
         }
       });
     }
@@ -663,6 +693,7 @@ const detectPIIInformation = (resumeText: string) => {
     addresses: piiData.addresses.length,
     socialMedia: piiData.socialMedia.length
   });
+  console.log('Detailed PII Results:', piiData);
 
   return piiData;
 };
