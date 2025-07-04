@@ -154,7 +154,7 @@ export class ResumeParser {
       // 🛡️ Fallback if text is empty or too short
       if (text.trim().length < 30) {
         console.warn('🔁 No readable text found, switching to OCR...');
-        return await this.extractTextWithOCR(buffer);
+        return await this.extractTextWithOCR(buffer.slice(0));
       }
 
       console.log(`✅ PDF text extraction successful: ${text.length} characters`);
@@ -162,6 +162,13 @@ export class ResumeParser {
       
     } catch (err) {
       console.error('❌ PDF extraction error:', err);
+      // Try OCR as fallback with fresh buffer copy
+      try {
+        console.warn('🔁 PDF text extraction failed, trying OCR fallback...');
+        return await this.extractTextWithOCR(file.arrayBuffer());
+      } catch (ocrErr) {
+        console.error('❌ OCR fallback also failed:', ocrErr);
+      }
       throw new Error('PDF processing failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   }
@@ -169,17 +176,20 @@ export class ResumeParser {
   /**
    * OCR extraction for image-based PDFs
    */
-  private static async extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
+  private static async extractTextWithOCR(bufferSource: ArrayBuffer | Promise<ArrayBuffer>): Promise<string> {
     try {
       console.log('🔍 Starting OCR extraction...');
       
+      // Ensure we have a fresh ArrayBuffer
+      const buffer = bufferSource instanceof Promise ? await bufferSource : bufferSource;
+      
       // Validate buffer
       if (!buffer || buffer.byteLength === 0) {
-        throw new Error("Buffer is empty or undefined.");
+        throw new Error("We couldn't read text from your resume. Try uploading a higher-quality scan or export your PDF from a text editor (like Word or Google Docs).");
       }
 
       // Convert PDF pages to images and extract text
-      const imageDataUrl = await this.convertPdfPageToImage(buffer);
+      const imageDataUrl = await this.convertPdfPageToImage(buffer.slice(0));
       
       // Create Tesseract worker
       console.log('🤖 Initializing OCR worker...');
@@ -200,7 +210,10 @@ export class ResumeParser {
       
     } catch (err) {
       console.error('❌ OCR extraction failed:', err);
-      throw new Error('OCR extraction failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      if (err instanceof Error && err.message.includes("couldn't read text")) {
+        throw err; // Pass through user-friendly message
+      }
+      throw new Error('We couldn\'t read text from your resume. Try uploading a higher-quality scan or export your PDF from a text editor (like Word or Google Docs).');
     }
   }
 
@@ -211,8 +224,13 @@ export class ResumeParser {
     try {
       console.log('🖼️ Converting PDF page to image...');
       
-      // Use fresh buffer to avoid detachment
-      const safeBuffer = new Uint8Array(buffer);
+      // Validate buffer first
+      if (!buffer || buffer.byteLength === 0) {
+        throw new Error('Buffer is empty for image conversion');
+      }
+      
+      // Create fresh buffer copy to avoid detachment issues
+      const safeBuffer = new Uint8Array(buffer.slice(0));
       const pdf = await getDocument({ data: safeBuffer }).promise;
       const page = await pdf.getPage(1); // Convert first page only for performance
       
